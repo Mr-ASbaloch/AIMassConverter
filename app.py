@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 from datetime import datetime
 
 # ----------------------- CONFIG -----------------------
@@ -11,12 +12,15 @@ st.set_page_config(
 # ----------------------- THEME TOGGLE -----------------------
 st.sidebar.header("⚙️ Settings")
 theme = st.sidebar.radio("Choose Theme:", ["Light", "Dark"])
+view_mode = st.sidebar.selectbox("Table View Mode:", ["Compact", "Detailed"])
+
 if theme == "Dark":
     st.markdown(
         """
         <style>
         body {background-color: #121212; color: #fafafa;}
         .stButton>button {background-color: #0d6efd; color: white; border-radius: 8px;}
+        .stDataFrame {border-radius: 10px;}
         </style>
         """,
         unsafe_allow_html=True
@@ -36,14 +40,14 @@ mass_units = {
 
 # ----------------------- TITLE -----------------------
 st.title("⚖️ Advanced Mass Converter")
-st.caption("Convert between multiple mass units instantly, with live history tracking.")
+st.caption("Convert between multiple mass units instantly — with search, themes, and live history tracking.")
 
 # ----------------------- INPUT SECTION -----------------------
 col1, col2 = st.columns(2)
 with col1:
     input_value = st.number_input("Enter Value", min_value=0.0, step=0.1, value=1.0)
 
-# Searchable dropdowns
+# Searchable dropdown
 with col2:
     search = st.text_input("🔍 Search Unit (optional)", "")
     filtered_units = [u for u in mass_units if search.lower() in u.lower()] if search else list(mass_units.keys())
@@ -59,31 +63,47 @@ if st.button("🔁 Convert"):
     result = input_value * (mass_units[from_unit] / mass_units[to_unit])
     st.success(f"{input_value} {from_unit} = {result:.6f} {to_unit}")
 
-    # Save conversion to history
     st.session_state.history.append({
-        "time": datetime.now().strftime("%H:%M:%S"),
-        "from": from_unit,
-        "to": to_unit,
-        "input": input_value,
-        "result": round(result, 6)
+        "Time": datetime.now().strftime("%H:%M:%S"),
+        "From": from_unit,
+        "To": to_unit,
+        "Input": input_value,
+        "Result": round(result, 6)
     })
 
-# ----------------------- QUICK REFERENCE TABLE -----------------------
+# ----------------------- ENHANCED QUICK CONVERSION TABLE -----------------------
 st.divider()
-st.subheader("📊 Quick Conversion Table")
+st.subheader("📊 Enhanced Quick Conversion Table")
 
-converted_values = {
-    unit: input_value * (mass_units[from_unit] / mass_units[unit])
-    for unit in mass_units
-}
-st.dataframe(converted_values.items(), use_container_width=True)
+conversion_data = []
+for unit, factor in mass_units.items():
+    converted_value = input_value * (mass_units[from_unit] / factor)
+    conversion_data.append({
+        "Unit": unit,
+        "Converted Value": f"{converted_value:,.6f}",
+        "Conversion Factor (to 1 kg)": f"{factor:.10f}" if view_mode == "Detailed" else "-"
+    })
+
+df = pd.DataFrame(conversion_data)
+if view_mode == "Compact":
+    df = df[["Unit", "Converted Value"]]
+
+# Apply color styling
+def highlight_cells(val):
+    return 'background-color: #0d6efd; color: white;' if "kg" in val else ''
+
+st.dataframe(
+    df.style.applymap(highlight_cells, subset=["Unit"]),
+    use_container_width=True
+)
 
 # ----------------------- HISTORY SECTION -----------------------
 st.divider()
 st.subheader("🕒 Conversion History")
 
 if st.session_state.history:
-    st.table(st.session_state.history)
+    hist_df = pd.DataFrame(st.session_state.history)
+    st.dataframe(hist_df, use_container_width=True)
 else:
     st.info("No conversions yet. Perform one to see history here!")
 
